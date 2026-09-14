@@ -20,6 +20,9 @@ on:
         type: string
         default: ""
 
+permissions:
+  contents: read
+  id-token: write
 env:
   CHALK_ON: ${{ inputs.leg == 'instrumented' }}
 name: Test Workflow
@@ -27,15 +30,24 @@ run-name: "Test Workflow ${{ inputs.leg || github.event_name }} ${{ inputs.racec
 jobs:
   test:
     permissions:
+      id-token: write
       contents: read # To checkout repository
       actions: read # To read workflow artifacts (if needed)
       checks: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: crashappsec/action-checkout@main
         with:
+          chalk: ${{ env.CHALK_ON }}
+          profile: ${{ inputs.profile || 'curiosity-tests-racecar' }}
+          lfs: false
           fetch-depth: 0 # Full history needed for SonarCloud blame data
+      - name: Assert instrumentation is live
+        if: env.CHALK_ON == 'true'
+        continue-on-error: true
+        run: |
+          test -n "${CURIOSITY_ROOT:-}" || { echo "::warning::CURIOSITY_ROOT unset in this step - in a container job the observables install on the host"; exit 1; }
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
